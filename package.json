@@ -1,0 +1,84 @@
+{
+  "name": "yun-commit-helper",
+  "displayName": "Yun Commit Helper",
+  "description": "快速套用 commit 訊息模板的 VS Code extension",
+  "version": "1.0.2",
+  "publisher": "yun-team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/yun-commit-extension.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "commit-helper",
+          "title": "Commit Helper",
+          "icon": "$(git-commit)"
+        }
+      ]
+    },
+    "views": {
+      "commit-helper": [
+        {
+          "type": "webview",
+          "id": "commit-helper-view",
+          "name": "快速 Commit"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "commit-helper.commit",
+        "title": "快速 Commit",
+        "category": "Commit Helper"
+      },
+      {
+        "command": "commit-helper.refresh",
+        "title": "重新整理",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "commit-helper.refresh",
+          "when": "view == commit-helper-view",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "commit-helper.commit",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "!inDebugMode"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "18.x",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0"
+  }
+}
