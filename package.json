@@ -1,15 +1,15 @@
 {
   "name": "yun-commit-helper",
   "displayName": "Yun Commit Helper",
-  "description": "快速套用 commit 訊息模板的 VS Code extension",
-  "version": "1.0.2",
+  "description": "AI-powered Git commit helper with Traditional Chinese interface",
+  "version": "1.0.3",
   "publisher": "yun-team",
   "repository": {
     "type": "git",
     "url": "https://github.com/your-username/yun-commit-extension.git"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.60.0"
   },
   "categories": [
     "Other"
@@ -31,19 +31,19 @@
         {
           "type": "webview",
           "id": "commit-helper-view",
-          "name": "快速 Commit"
+          "name": "快速 COMMIT"
         }
       ]
     },
     "commands": [
       {
         "command": "commit-helper.commit",
-        "title": "快速 Commit",
+        "title": "Open Commit Helper",
         "category": "Commit Helper"
       },
       {
         "command": "commit-helper.refresh",
-        "title": "重新整理",
+        "title": "Refresh File List",
         "icon": "$(refresh)"
       }
     ],
@@ -63,22 +63,55 @@
         "mac": "cmd+shift+c",
         "when": "!inDebugMode"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Yun Commit Helper",
+      "properties": {
+        "yun-commit-helper.ai.provider": {
+          "type": "string",
+          "enum": [
+            "rules",
+            "openai",
+            "anthropic",
+            "gemini",
+            "local"
+          ],
+          "enumDescriptions": [
+            "使用內建規則引擎（免費，離線）",
+            "使用 OpenAI GPT（需要 API Key）",
+            "使用 Anthropic Claude（需要 API Key）",
+            "使用 Google Gemini（需要 API Key）",
+            "使用本地 AI 服務（如 Ollama）"
+          ],
+          "default": "rules",
+          "description": "AI 內容生成提供者"
+        },
+        "yun-commit-helper.ai.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI、Anthropic 或 Google Gemini API Key（僅在使用相應提供者時需要）"
+        },
+        "yun-commit-helper.ai.model": {
+          "type": "string",
+          "default": "",
+          "description": "AI 模型名稱（如 gpt-3.5-turbo, claude-3-haiku-20240307, codellama）"
+        },
+        "yun-commit-helper.ai.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/api/generate",
+          "description": "本地 AI 服務端點（僅在使用本地提供者時需要）"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
-    "@types/node": "18.x",
-    "@typescript-eslint/eslint-plugin": "^6.13.0",
-    "@typescript-eslint/parser": "^6.13.0",
-    "eslint": "^8.54.0",
-    "typescript": "^5.3.0"
+    "@types/vscode": "^1.60.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
   }
 }
