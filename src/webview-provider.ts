@@ -4,6 +4,7 @@ import { CONSTANTS } from './constants';
 import { GitService } from './git-service';
 import { FileWatcher } from './file-watcher';
 import { HtmlGenerator } from './html-generator';
+import { AIService } from './ai-service';
 import { RefreshableProvider } from './commands';
 
 /**
@@ -17,10 +18,12 @@ export class CommitHelperProvider implements vscode.WebviewViewProvider, Refresh
   private gitService?: GitService;
   private fileWatcher?: FileWatcher;
   private htmlGenerator: HtmlGenerator;
+  private aiService: AIService;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(private readonly _extensionUri: vscode.Uri) {
     this.htmlGenerator = new HtmlGenerator();
+    this.aiService = new AIService();
     this.setupServices();
   }
 
@@ -73,6 +76,9 @@ export class CommitHelperProvider implements vscode.WebviewViewProvider, Refresh
 
     // Initial refresh
     this.refreshFileList();
+    
+    // Load AI configuration
+    this.loadAIConfiguration();
   }
 
   /**
@@ -97,6 +103,12 @@ export class CommitHelperProvider implements vscode.WebviewViewProvider, Refresh
         case CONSTANTS.MESSAGES.TYPES.STAGE_ALL:
           await this.stageAllFiles();
           break;
+        case CONSTANTS.MESSAGES.TYPES.GENERATE_AI_CONTENT:
+          await this.generateAIContent();
+          break;
+        case CONSTANTS.MESSAGES.TYPES.UPDATE_AI_CONFIG:
+          await this.updateAIConfiguration(data.config);
+          break;
         default:
           console.warn(`Unknown message type: ${data.type}`);
       }
@@ -104,6 +116,63 @@ export class CommitHelperProvider implements vscode.WebviewViewProvider, Refresh
       console.error('Error handling webview message:', error);
       this.showErrorMessage(`處理操作時發生錯誤: ${error}`);
     }
+  }
+
+  /**
+   * Generates AI content for commit message
+   */
+  private async generateAIContent(): Promise<void> {
+    if (!this.gitService) {
+      this.showErrorMessage(CONSTANTS.MESSAGES.ERRORS.NO_WORKSPACE);
+      this.sendAIGenerationFailed();
+      return;
+    }
+
+    try {
+      // Check if there are staged changes
+      if (!(await this.gitService.hasStagedChanges())) {
+        this.showErrorMessage(CONSTANTS.MESSAGES.ERRORS.NO_STAGED_FILES);
+        this.sendAIGenerationFailed();
+        return;
+      }
+
+      // Get diff summary for AI analysis
+      const diffSummary = await this.gitService.getStagedChangesSummary();
+      if (!diffSummary) {
+        this.showErrorMessage(CONSTANTS.MESSAGES.ERRORS.NO_STAGED_FILES);
+        this.sendAIGenerationFailed();
+        return;
+      }
+
+      // Generate AI content
+      const aiContent = await this.aiService.generateCommitContent(diffSummary);
+
+      // Send generated content to webview
+      this._view?.webview.postMessage({
+        type: CONSTANTS.MESSAGES.TYPES.AI_CONTENT_GENERATED,
+        content: aiContent
+      });
+
+      // Show success message with confidence level
+      const confidencePercent = Math.round(aiContent.confidence * 100);
+      vscode.window.showInformationMessage(
+        `${CONSTANTS.MESSAGES.SUCCESS.AI_CONTENT_GENERATED} (信心度: ${confidencePercent}%)`
+      );
+
+    } catch (error) {
+      console.error('AI content generation failed:', error);
+      this.showErrorMessage(`${CONSTANTS.MESSAGES.ERRORS.AI_GENERATION_FAILED}: ${error}`);
+      this.sendAIGenerationFailed();
+    }
+  }
+
+  /**
+   * Sends AI generation failed message to webview
+   */
+  private sendAIGenerationFailed(): void {
+    this._view?.webview.postMessage({
+      type: CONSTANTS.MESSAGES.TYPES.AI_GENERATION_FAILED
+    });
   }
 
   /**
@@ -272,6 +341,68 @@ export class CommitHelperProvider implements vscode.WebviewViewProvider, Refresh
     this._view?.webview.postMessage({
       type: CONSTANTS.MESSAGES.TYPES.CLEAR_INPUTS
     });
+  }
+
+  /**
+   * Updates AI configuration settings
+   */
+  private async updateAIConfiguration(config: any): Promise<void> {
+    try {
+      const vsCodeConfig = vscode.workspace.getConfiguration('yun-commit-helper.ai');
+      
+      if (config.provider) {
+        await vsCodeConfig.update('provider', config.provider, vscode.ConfigurationTarget.Global);
+      }
+      
+      if (config.apiKey !== undefined) {
+        await vsCodeConfig.update('apiKey', config.apiKey, vscode.ConfigurationTarget.Global);
+      }
+      
+      if (config.model !== undefined) {
+        await vsCodeConfig.update('model', config.model, vscode.ConfigurationTarget.Global);
+      }
+      
+      if (config.endpoint !== undefined) {
+        await vsCodeConfig.update('endpoint', config.endpoint, vscode.ConfigurationTarget.Global);
+      }
+
+      // Update the AI service configuration
+      if (this.aiService) {
+        this.aiService.updateConfiguration(config);
+      }
+      
+      console.log('AI configuration updated:', config);
+    } catch (error) {
+      console.error('Failed to update AI configuration:', error);
+      this.showErrorMessage('AI 設定更新失敗');
+    }
+  }
+
+  /**
+   * Loads and sends current AI configuration to webview
+   */
+  private loadAIConfiguration(): void {
+    if (!this._view) {
+      return;
+    }
+
+    try {
+      const config = vscode.workspace.getConfiguration('yun-commit-helper.ai');
+      
+      const aiConfig = {
+        provider: config.get('provider') || 'rules',
+        apiKey: config.get('apiKey') || '',
+        model: config.get('model') || '',
+        endpoint: config.get('endpoint') || 'http://localhost:11434/api/generate'
+      };
+
+      this._view.webview.postMessage({
+        type: CONSTANTS.MESSAGES.TYPES.LOAD_AI_CONFIG,
+        config: aiConfig
+      });
+    } catch (error) {
+      console.error('Failed to load AI configuration:', error);
+    }
   }
 
   /**
