@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { GitFileStatus } from './types';
+import { GitFileStatus, GitDiffInfo } from './types';
 import { CONSTANTS } from './constants';
 
 const execAsync = promisify(exec);
@@ -43,6 +43,70 @@ export class GitService {
       return false;
     }
   }
+
+  /**
+   * Gets detailed diff information for staged files for AI analysis
+   */
+  public async getStagedDiffInfo(): Promise<GitDiffInfo[]> {
+    try {
+      // Get numstat (additions/deletions count)
+      const { stdout: numstat } = await execAsync(CONSTANTS.GIT.COMMANDS.DIFF_STAGED_NUMSTAT, {
+        cwd: this.workspaceFolder.uri.fsPath
+      });
+
+      // Get actual diff content
+      const { stdout: diffContent } = await execAsync(CONSTANTS.GIT.COMMANDS.DIFF_STAGED, {
+        cwd: this.workspaceFolder.uri.fsPath
+      });
+
+      const diffInfos: GitDiffInfo[] = [];
+      const numstatLines = numstat.trim().split('\n').filter(line => line.length > 0);
+
+      for (const line of numstatLines) {
+        const parts = line.split('\t');
+        if (parts.length >= 3) {
+          const additions = parseInt(parts[0]) || 0;
+          const deletions = parseInt(parts[1]) || 0;
+          const filePath = parts[2];
+
+          // Extract relevant diff content for this file
+          const fileContent = this.extractFileDiff(diffContent, filePath);
+          
+          diffInfos.push({
+            filePath,
+            status: this.getFileStatusFromDiff(diffContent, filePath),
+            additions,
+            deletions,
+            content: fileContent
+          });
+        }
+      }
+
+      return diffInfos;
+    } catch (error) {
+      console.error('Error getting staged diff info:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Gets the full staged changes diff for AI analysis
+   */
+  public async getStagedChangesSummary(): Promise<string> {
+    try {
+      // Return the raw git diff output directly
+      const { stdout } = await execAsync(CONSTANTS.GIT.COMMANDS.DIFF_STAGED, { 
+        cwd: this.workspaceFolder.uri.fsPath 
+      });
+      
+      return stdout.trim();
+    } catch (error) {
+      console.error('Error getting staged changes diff:', error);
+      return '';
+    }
+  }
+
+
 
   /**
    * Fetches the current Git file status from the workspace
@@ -166,6 +230,47 @@ export class GitService {
   public formatCommitMessage(commitType: string, scope: string, message: string): string {
     const scopeStr = scope ? `(${scope})` : '';
     return `${commitType}${scopeStr}: ${message}`;
+  }
+
+  /**
+   * Extracts diff content for a specific file
+   */
+  private extractFileDiff(fullDiff: string, filePath: string): string {
+    const lines = fullDiff.split('\n');
+    const fileStartPattern = new RegExp(`^diff --git a/${filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} b/${filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+    
+    let startIndex = -1;
+    let endIndex = lines.length;
+    
+    // Find start of this file's diff
+    for (let i = 0; i < lines.length; i++) {
+      if (fileStartPattern.test(lines[i])) {
+        startIndex = i;
+        break;
+      }
+    }
+    
+    if (startIndex === -1) return '';
+    
+    // Find end of this file's diff (start of next file or end)
+    for (let i = startIndex + 1; i < lines.length; i++) {
+      if (lines[i].startsWith('diff --git')) {
+        endIndex = i;
+        break;
+      }
+    }
+    
+    return lines.slice(startIndex, endIndex).join('\n');
+  }
+
+  /**
+   * Determines file status from diff content
+   */
+  private getFileStatusFromDiff(diffContent: string, filePath: string): string {
+    if (diffContent.includes(`new file mode`)) return 'A';
+    if (diffContent.includes(`deleted file mode`)) return 'D';
+    if (diffContent.includes(`rename from`) && diffContent.includes(`rename to`)) return 'R';
+    return 'M'; // Default to modified
   }
 
   /**

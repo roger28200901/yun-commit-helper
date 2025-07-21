@@ -19,7 +19,7 @@ export interface GitFileStatus {
 /**
  * Message types for communication between webview and extension
  */
-export type MessageType = 'commit' | 'stageFile' | 'unstageFile' | 'refresh' | 'stageAll' | 'ready' | 'updateFiles' | 'clearInputs';
+export type MessageType = 'commit' | 'stageFile' | 'unstageFile' | 'refresh' | 'stageAll' | 'ready' | 'updateFiles' | 'clearInputs' | 'generateAIContent' | 'updateAIConfig' | 'loadAIConfig';
 
 /**
  * Message data structure for webview communication
@@ -34,4 +34,35 @@ export interface WebviewMessage {
  */
 export interface GitConfig {
   workspacePath: string;
+}
+
+/**
+ * AI Configuration interface
+ */
+export interface AIConfig {
+  provider: 'openai' | 'anthropic' | 'gemini' | 'local' | 'rules';
+  apiKey?: string;
+  model?: string;
+  endpoint?: string;
+}
+
+/**
+ * AI-generated commit content
+ */
+export interface AICommitContent {
+  type: string;
+  scope?: string;
+  message: string;
+  confidence: number;
+}
+
+/**
+ * Git diff information for AI analysis
+ */
+export interface GitDiffInfo {
+  filePath: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  content: string;
 } 
